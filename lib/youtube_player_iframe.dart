@@ -26,15 +26,21 @@ export 'src/player_params.dart';
 export 'src/youtube_player_scaffold.dart';
 
 /// A widget to play or stream Youtube Videos.
-class YoutubePlayerIFrame extends StatefulWidget {
+@Deprecated('Use YoutubePlayer instead')
+typedef YoutubePlayerIFrame = YoutubePlayer;
+
+/// A widget to play or stream Youtube Videos.
+class YoutubePlayer extends StatefulWidget {
   /// A widget to play or stream Youtube Videos.
-  const YoutubePlayerIFrame({
+  const YoutubePlayer({
     super.key,
     this.controller,
     this.aspectRatio = 16 / 9,
     this.gestureRecognizers,
     this.backgroundColor,
     this.userAgent,
+    this.enableFullScreenOnVerticalDrag = true,
+    this.allowsInlineMediaPlayback = false,
   });
 
   /// The [controller] for this player.
@@ -66,11 +72,18 @@ class YoutubePlayerIFrame extends StatefulWidget {
   /// By default `userAgent` is null.
   final String? userAgent;
 
+  /// Enables switching full screen mode on vertical drag in the player.
+  ///
+  /// Default is true.
+  final bool enableFullScreenOnVerticalDrag;
+
+  final bool allowsInlineMediaPlayback;
+
   @override
-  State<YoutubePlayerIFrame> createState() => _YoutubePlayerIFrameState();
+  State<YoutubePlayer> createState() => _YoutubePlayerState();
 }
 
-class _YoutubePlayerIFrameState extends State<YoutubePlayerIFrame> {
+class _YoutubePlayerState extends State<YoutubePlayer> {
   late final YoutubePlayerController _controller;
 
   @override
@@ -81,29 +94,33 @@ class _YoutubePlayerIFrameState extends State<YoutubePlayerIFrame> {
 
   @override
   Widget build(BuildContext context) {
-    Widget player = GestureDetector(
-      onVerticalDragUpdate: _fullscreenGesture,
-      child: WebView(
-        javascriptMode: JavascriptMode.unrestricted,
-        allowsInlineMediaPlayback: true,
-        initialMediaPlaybackPolicy: AutoMediaPlaybackPolicy.always_allow,
-        onWebResourceError: (error) => log(
-          error.description,
-          name: error.errorCode.toString(),
-        ),
-        onWebViewCreated: _controller.init,
-        javascriptChannels: _controller.javaScriptChannels,
-        zoomEnabled: false,
-        gestureNavigationEnabled: false,
-        gestureRecognizers: widget.gestureRecognizers,
-        navigationDelegate: (request) {
-          final uri = Uri.tryParse(request.url);
-          return _decideNavigation(uri);
-        },
-        backgroundColor: widget.backgroundColor,
-        userAgent: widget.userAgent,
+    Widget player = WebView(
+      javascriptMode: JavascriptMode.unrestricted,
+      allowsInlineMediaPlayback: widget.allowsInlineMediaPlayback,
+      initialMediaPlaybackPolicy: AutoMediaPlaybackPolicy.always_allow,
+      onWebResourceError: (error) => log(
+        error.description,
+        name: error.errorCode.toString(),
       ),
+      onWebViewCreated: _controller.init,
+      javascriptChannels: _controller.javaScriptChannels,
+      zoomEnabled: false,
+      gestureNavigationEnabled: false,
+      gestureRecognizers: widget.gestureRecognizers,
+      navigationDelegate: (request) {
+        final uri = Uri.tryParse(request.url);
+        return _decideNavigation(uri);
+      },
+      backgroundColor: widget.backgroundColor,
+      userAgent: widget.userAgent,
     );
+
+    if (widget.enableFullScreenOnVerticalDrag) {
+      player = GestureDetector(
+        onVerticalDragUpdate: _fullscreenGesture,
+        child: player,
+      );
+    }
 
     return OrientationBuilder(
       builder: (context, orientation) {
@@ -121,9 +138,7 @@ class _YoutubePlayerIFrameState extends State<YoutubePlayerIFrame> {
     final delta = details.delta.dy;
 
     if (delta.abs() > 10) {
-      delta.isNegative
-          ? _controller.enterFullScreen()
-          : _controller.exitFullScreen();
+      delta.isNegative ? _controller.enterFullScreen() : _controller.exitFullScreen();
     }
   }
 
@@ -135,9 +150,7 @@ class _YoutubePlayerIFrameState extends State<YoutubePlayerIFrame> {
     final path = uri.path;
 
     String? featureName;
-    if (host.contains('facebook') ||
-        host.contains('twitter') ||
-        host == 'youtu') {
+    if (host.contains('facebook') || host.contains('twitter') || host == 'youtu') {
       featureName = 'social';
     } else if (params.containsKey('feature')) {
       featureName = params['feature'];

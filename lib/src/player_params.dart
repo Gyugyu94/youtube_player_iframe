@@ -14,7 +14,6 @@ class YoutubePlayerParams {
   /// Default is true.
   ///
   /// Note: auto play might not always work on mobile devices or when video is not muted at start.
-  @Deprecated('Use load or cue methods instead.')
   final bool autoPlay;
 
   /// Mutes the player.
@@ -126,7 +125,7 @@ class YoutubePlayerParams {
 
   /// Defines player parameters for the youtube player.
   const YoutubePlayerParams({
-    this.autoPlay = true,
+    @Deprecated('Use load or cue methods instead.') this.autoPlay = true,
     this.mute = false,
     this.captionLanguage = 'en',
     this.enableCaption = true,
@@ -134,7 +133,7 @@ class YoutubePlayerParams {
     this.showControls = true,
     this.enableKeyboard = kIsWeb,
     this.enableJavaScript = true,
-    this.endAt,
+    @Deprecated('Use load or cue methods instead.') this.endAt,
     this.showFullscreenButton = false,
     this.interfaceLanguage = 'en',
     this.showVideoAnnotations = true,
@@ -142,7 +141,8 @@ class YoutubePlayerParams {
     this.origin = 'https://www.youtube.com',
     this.playsInline = true,
     this.strictRelatedVideos = false,
-    this.startAt = Duration.zero,
+    @Deprecated('Use load or cue methods instead.')
+        this.startAt = Duration.zero,
   });
 
   /// Creates [Map] representation of [YoutubePlayerParams].
@@ -156,7 +156,6 @@ class YoutubePlayerParams {
       'controls': _boolean(showControls),
       'disablekb': _boolean(!enableKeyboard),
       'enablejsapi': _boolean(enableJavaScript),
-      if (endAt != null) 'end': endAt!.inSeconds,
       'fs': _boolean(showFullscreenButton),
       'hl': interfaceLanguage,
       'iv_load_policy': showVideoAnnotations ? 1 : 3,
@@ -164,8 +163,7 @@ class YoutubePlayerParams {
       'modestbranding': '1',
       if (origin != null && !kIsWeb) 'origin': origin,
       'playsinline': _boolean(playsInline),
-      'rel': _boolean(strictRelatedVideos),
-      'start': startAt.inSeconds,
+      'rel': _boolean(!strictRelatedVideos),
     };
   }
 

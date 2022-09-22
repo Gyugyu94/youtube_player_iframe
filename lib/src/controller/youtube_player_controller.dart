@@ -14,7 +14,7 @@ import 'youtube_player_event_handler.dart';
 
 /// Controls the youtube player, and provides updates when the state is changing.
 ///
-/// The video is displayed in a Flutter app by creating a [YoutubePlayerIFrame] widget.
+/// The video is displayed in a Flutter app by creating a [YoutubePlayer] widget.
 ///
 /// After [YoutubePlayerController.close] all further calls are ignored.
 class YoutubePlayerController implements YoutubePlayerIFrameAPI {
@@ -25,6 +25,34 @@ class YoutubePlayerController implements YoutubePlayerIFrameAPI {
     registerYoutubePlayerIframeWeb();
     _eventHandler = YoutubePlayerEventHandler(this);
     javaScriptChannels = _eventHandler.javascriptChannels;
+  }
+
+  /// Creates a [YoutubePlayerController] and initializes the player with [videoId].
+  factory YoutubePlayerController.fromVideoId({
+    required String videoId,
+    YoutubePlayerParams params = const YoutubePlayerParams(),
+    bool autoPlay = false,
+    double? startSeconds,
+    double? endSeconds,
+  }) {
+    final controller = YoutubePlayerController(params: params);
+
+    return controller
+      ..onInit = () {
+        if (autoPlay) {
+          controller.loadVideoById(
+            videoId: videoId,
+            startSeconds: startSeconds,
+            endSeconds: endSeconds,
+          );
+        } else {
+          controller.cueVideoById(
+            videoId: videoId,
+            startSeconds: startSeconds,
+            endSeconds: endSeconds,
+          );
+        }
+      };
   }
 
   /// Defines player parameters for the youtube player.
@@ -40,6 +68,10 @@ class YoutubePlayerController implements YoutubePlayerIFrameAPI {
   final StreamController<YoutubePlayerValue> _valueController =
       StreamController.broadcast();
   YoutubePlayerValue _value = YoutubePlayerValue();
+
+  /// A Stream of [YoutubePlayerValue], which allows you to subscribe to changes
+  /// in the controller value.
+  Stream<YoutubePlayerValue> get stream => _valueController.stream;
 
   /// The [YoutubePlayerValue].
   YoutubePlayerValue get value => _value;
@@ -149,6 +181,30 @@ class YoutubePlayerController implements YoutubePlayerIFrameAPI {
     );
   }
 
+  /// Loads the video with the given [url].
+  ///
+  /// The [url] must be a valid youtube video watch url.
+  /// i.e. https://www.youtube.com/watch?v=VIDEO_ID
+  Future<void> loadVideo(String url) {
+    assert(
+      RegExp(r'^https://(?:www\.|m\.)?youtube\.com/watch.*').hasMatch(url),
+      'Only YouTube watch URLs are supported.',
+    );
+
+    final params = Uri.parse(url).queryParameters;
+    final videoId = params['v'];
+
+    assert(
+      videoId != null && videoId.isNotEmpty,
+      'Video ID is missing from the provided url.',
+    );
+
+    return loadVideoById(
+      videoId: videoId!,
+      startSeconds: double.tryParse(params['t'] ?? ''),
+    );
+  }
+
   /// Loads the player with default [params].
   @internal
   Future<void> init(WebViewController controller) async {
@@ -178,7 +234,8 @@ class YoutubePlayerController implements YoutubePlayerIFrameAPI {
     await controller.loadHtmlString(
       playerHtml
           .replaceFirst('<<playerVars>>', params.toJson())
-          .replaceFirst('<<platform>>', platform),
+          .replaceFirst('<<platform>>', platform)
+          .replaceFirst('<<host>>', params.origin ?? 'https://www.youtube.com'),
       baseUrl: baseUrl,
     );
   }
@@ -231,7 +288,6 @@ class YoutubePlayerController implements YoutubePlayerIFrameAPI {
   /// the old one.
   void update({
     FullScreenOption? fullScreenOption,
-    int? volume,
     PlayerState? playerState,
     double? playbackRate,
     String? playbackQuality,
@@ -240,7 +296,6 @@ class YoutubePlayerController implements YoutubePlayerIFrameAPI {
   }) {
     final updatedValue = YoutubePlayerValue(
       fullScreenOption: fullScreenOption ?? value.fullScreenOption,
-      volume: volume ?? value.volume,
       playerState: playerState ?? value.playerState,
       playbackRate: playbackRate ?? value.playbackRate,
       playbackQuality: playbackQuality ?? value.playbackQuality,
@@ -343,8 +398,14 @@ class YoutubePlayerController implements YoutubePlayerIFrameAPI {
   }
 
   @override
-  Future<String> get videoUrl {
-    return _runWithResult('getVideoUrl');
+  Future<String> get videoUrl async {
+    final videoUrl = await _runWithResult('getVideoUrl');
+
+    if (videoUrl.startsWith('"')) {
+      return videoUrl.substring(1, videoUrl.length - 1);
+    }
+
+    return videoUrl;
   }
 
   @override
@@ -498,6 +559,23 @@ class YoutubePlayerController implements YoutubePlayerIFrameAPI {
     } else {
       enterFullScreen(lock: lock);
     }
+  }
+
+  /// Creates a stream that repeatedly emits current time at [period] intervals.
+  Stream<Duration> getCurrentPositionStream({
+    Duration period = const Duration(seconds: 1),
+  }) async* {
+    yield _getDurationFrom(seconds: await currentTime);
+
+    yield* Stream.periodic(period).asyncMap(
+      (_) async => _getDurationFrom(seconds: await currentTime),
+    );
+  }
+
+  Duration _getDurationFrom({required double seconds}) {
+    final timeInMs = (seconds * 1000).truncate();
+
+    return Duration(milliseconds: timeInMs);
   }
 
   /// Called when the player is created.

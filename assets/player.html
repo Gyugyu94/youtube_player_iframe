@@ -43,22 +43,15 @@
       firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
 
       var platform = "<<platform>>";
+      var host = "<<host>>";
       var player;
       function onYouTubeIframeAPIReady() {
         player = new YT.Player("player", {
+          host: host,
           playerVars: <<playerVars>>,
           events: {
             onReady: function (event) {
-              if(platform != 'web') {
-                var ytFrame = document.getElementsByTagName('iframe')[0].contentWindow.document;
-                var fsButton = ytFrame.getElementsByClassName('ytp-fullscreen-button ytp-button')[0];
-                var fsButtonCopy = fsButton.cloneNode(true);
-                fsButton.replaceWith(fsButtonCopy);
-                fsButtonCopy.onclick = function() {
-                  sendMessage('FullscreenButtonPressed', '');
-                };
-              }
-
+              handleFullScreenForMobilePlatform();
               sendMessage('Ready', event);
             },
             onStateChange: function (event) {
@@ -138,6 +131,21 @@
         if(platform == 'android') return data;
 
         return JSON.stringify(data);
+      }
+
+      function handleFullScreenForMobilePlatform() {
+        if(platform != 'web') {
+          var ytFrame = document.getElementsByTagName('iframe')[0].contentWindow.document;
+          var fsButton = ytFrame.getElementsByClassName('ytp-fullscreen-button ytp-button')[0];
+
+          if(fsButton != null) {
+            var fsButtonCopy = fsButton.cloneNode(true);
+            fsButton.replaceWith(fsButtonCopy);
+            fsButtonCopy.onclick = function() {
+              sendMessage('FullscreenButtonPressed', '');
+            };
+          }
+        }
       }
     </script>
   </body>
